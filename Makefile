@@ -20,6 +20,6 @@ test: build-test
 	@docker run --rm $(IMAGE_TEST)
 
 clean:
-	@rm -rf venv .tox .eggs *.egg-info buid .pytest_cache
+	@rm -rf .tox .eggs *.egg-info buid .pytest_cache
 	@find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf
 	@find . -name "*.pyc" -delete
