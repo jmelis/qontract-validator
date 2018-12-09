@@ -55,7 +55,7 @@ class TestSplitRef(object):
             path, ptr = resolver.split_ref(ref)
 
 
-class Testresolver(object):
+class TestResolver(object):
     def do_fxt_test(self, fxt_path):
         fixture = fxt.get_anymarkup(fxt_path)
         bundle = fixture['bundle']
