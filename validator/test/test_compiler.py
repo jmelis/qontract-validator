@@ -48,6 +48,12 @@ class TestSplitRef(object):
         with pytest.raises(compiler.InvalidRef):
             path, ptr = compiler.split_ref(ref)
 
+    def test_empty(self):
+        ref = ""
+
+        with pytest.raises(compiler.InvalidRef):
+            path, ptr = compiler.split_ref(ref)
+
 
 class TestCompiler(object):
     def do_fxt_test(self, fxt_path):
