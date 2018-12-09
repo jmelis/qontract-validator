@@ -12,6 +12,6 @@ push:
 	@docker push $(IMAGE_NAME):$(IMAGE_TAG)
 
 clean:
-	@rm -rf venv .tox .eggs reconcile.egg-info buid .pytest_cache
+	@rm -rf venv .tox .eggs *.egg-info buid .pytest_cache
 	@find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf
 	@find . -name "*.pyc" -delete
