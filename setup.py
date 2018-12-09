@@ -39,7 +39,7 @@ setup(
         'console_scripts': [
             'qontract-bundler = validator.bundler:main',
             'qontract-validator = validator.validator:main',
-            'qontract-compiler = validator.compiler:main',
+            'qontract-resolver = validator.resolver:main',
         ],
     },
 )

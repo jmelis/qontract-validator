@@ -74,7 +74,7 @@ def dereference(bundle, datafile_path, obj, parent=None, key_index=None):
             dereference(bundle, datafile_path, item, obj, key_index)
 
 
-def compile(bundle):
+def resolve(bundle):
     new_bundle = copy.deepcopy(bundle)
     for datafile_path, datafile in new_bundle.items():
         try:
@@ -92,5 +92,5 @@ def compile(bundle):
 @click.option('--bundle', 'bundle_path', required=True, help='bundle file')
 def main(bundle_path):
     source_bundle = load(bundle_path)
-    bundle = compile(source_bundle)
+    bundle = resolve(source_bundle)
     sys.stdout.write(json.dumps(bundle, indent=4) + "\n")
