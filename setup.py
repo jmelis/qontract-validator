@@ -17,10 +17,10 @@ setup(
         "anymarkup==0.7.0",
         "cachetools==2.1.0",
         "Click==7.0",
-        "enum34==1.1.6"
+        "enum34==1.1.6",
         "jsonschema==2.6.0",
         "PyYAML==3.13",
-        "requests==2.20.0",
+        "requests==2.20.0"
     ],
 
     test_suite="tests",
