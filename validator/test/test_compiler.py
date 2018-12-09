@@ -85,3 +85,6 @@ class TestCompiler(object):
 
     def test_jsonpointer(self):
         self.do_fxt_test('test_jsonpointer.yml')
+
+    def test_jsonpointer_self(self):
+        self.do_fxt_test('test_jsonpointer_self.yml')

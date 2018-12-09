@@ -1,0 +1,18 @@
+bundle:
+  /a:
+    name: a
+    the_name:
+      $ref: '#/name'
+    prop:
+      val: 1
+    the_prop:
+      $ref: '#/prop'
+
+expected:
+  /a:
+    name: a
+    the_name: a
+    prop:
+      val: 1
+    the_prop:
+      val: 1

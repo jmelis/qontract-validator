@@ -40,7 +40,7 @@ def split_ref(ref):
     return (path, ptr)
 
 
-def dereference(bundle, obj, parent=None, key_index=None):
+def dereference(bundle, datafile_path, obj, parent=None, key_index=None):
     if isinstance(obj, dict):
         if parent is not None and \
                 key_index is not None and \
@@ -54,30 +54,31 @@ def dereference(bundle, obj, parent=None, key_index=None):
                 if ptr is not None:
                     target = jsonpointer.resolve_pointer(target, ptr)
             else:
-                # TODO: not implemented yet
-                raise Exception('not implemented yet')
+                target = copy.deepcopy(bundle[datafile_path])
+                target = jsonpointer.resolve_pointer(target, ptr)
 
-            dereference(bundle, target)
+            dereference(bundle, datafile_path, target)
 
             override = copy.deepcopy(obj)
             override.pop('$ref')
 
-            target.update(override)
+            if isinstance(target, dict):
+                target.update(override)
 
             parent[key_index] = target
         else:
             for key, item in obj.items():
-                dereference(bundle, item, obj, key)
+                dereference(bundle, datafile_path, item, obj, key)
     elif isinstance(obj, list):
         for key_index, item in enumerate(obj):
-            dereference(bundle, item, obj, key_index)
+            dereference(bundle, datafile_path, item, obj, key_index)
 
 
 def compile(bundle):
     new_bundle = copy.deepcopy(bundle)
-    for path, datafile in new_bundle.items():
+    for datafile_path, datafile in new_bundle.items():
         try:
-            dereference(new_bundle, datafile)
+            dereference(new_bundle, datafile_path, datafile)
         except RuntimeError as e:
             if 'maximum recursion' in str(e):
                 raise CyclicRefError()
