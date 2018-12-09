@@ -1,8 +1,11 @@
 import copy
 import json
+import re
 import sys
 
 import click
+import json
+import jsonpointer
 
 
 class CyclicRefError(RuntimeError):
@@ -21,13 +24,32 @@ def load(datafiles_bundle_path):
     return unpack(datafiles_bundle)
 
 
+def split_ref(ref):
+    m = re.match(r'([^#]+)?(?:#(.*))?', ref)
+
+    path = None if m.group(1) == '' else m.group(1)
+    ptr = None if m.group(2) == '' else m.group(2)
+
+    return (path, ptr)
+
+
 def dereference(bundle, obj, parent=None, key_index=None):
     if isinstance(obj, dict):
         if parent is not None and \
                 key_index is not None and \
                 '$ref' in obj:
 
-            target = copy.deepcopy(bundle[obj['$ref']])
+            path, ptr = split_ref(obj['$ref'])
+
+            if path is not None:
+                target = copy.deepcopy(bundle[path])
+
+                if ptr is not None:
+                    target = jsonpointer.resolve_pointer(target, ptr)
+            else:
+                # TODO: not implemented yet
+                raise Exception('not implemented yet')
+
             dereference(bundle, target)
 
             override = copy.deepcopy(obj)

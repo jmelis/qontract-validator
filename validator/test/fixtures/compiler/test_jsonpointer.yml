@@ -1,0 +1,17 @@
+bundle:
+  /a:
+    name: a
+    b:
+      $ref: /b#/root
+  /b:
+    root:
+      name: b
+
+expected:
+  /a:
+    name: a
+    b:
+      name: b
+  /b:
+    root:
+      name: b
