@@ -4,7 +4,6 @@ import re
 import sys
 
 import click
-import json
 import jsonpointer
 
 
