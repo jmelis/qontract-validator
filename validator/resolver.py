@@ -15,16 +15,8 @@ class InvalidRef(RuntimeError):
     pass
 
 
-def unpack(bundle):
-    return {
-        path: datafile
-        for (path, datafile) in bundle
-    }
-
-
 def load(datafiles_bundle_path):
-    datafiles_bundle = json.load(open(datafiles_bundle_path))
-    return unpack(datafiles_bundle)
+    return json.load(open(datafiles_bundle_path))
 
 
 def split_ref(ref):
