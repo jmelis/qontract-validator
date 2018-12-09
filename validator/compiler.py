@@ -12,6 +12,10 @@ class CyclicRefError(RuntimeError):
     pass
 
 
+class InvalidRef(RuntimeError):
+    pass
+
+
 def unpack(bundle):
     return {
         path: datafile
@@ -29,6 +33,9 @@ def split_ref(ref):
 
     path = None if m.group(1) == '' else m.group(1)
     ptr = None if m.group(2) == '' else m.group(2)
+
+    if path is None and ptr is None:
+        raise InvalidRef()
 
     return (path, ptr)
 

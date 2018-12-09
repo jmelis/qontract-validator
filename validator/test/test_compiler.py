@@ -44,10 +44,9 @@ class TestSplitRef(object):
 
     def test_only_pound(self):
         ref = "#"
-        path, ptr = compiler.split_ref(ref)
 
-        assert path is None
-        assert ptr is None
+        with pytest.raises(compiler.InvalidRef):
+            path, ptr = compiler.split_ref(ref)
 
 
 class TestCompiler(object):
