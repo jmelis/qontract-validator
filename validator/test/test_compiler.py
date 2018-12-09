@@ -16,23 +16,26 @@ class TestCompiler(object):
         assert bundle == expected
 
     def test_no_refs(self):
-        self.do_fxt_test('test-0.yml')
+        self.do_fxt_test('test-00.yml')
 
     def test_simple_ref(self):
-        self.do_fxt_test('test-1.yml')
+        self.do_fxt_test('test-01.yml')
 
     def test_multiple_refs(self):
-        self.do_fxt_test('test-2.yml')
+        self.do_fxt_test('test-02.yml')
 
     def test_ignore_top_level_refs(self):
-        self.do_fxt_test('test-3.yml')
+        self.do_fxt_test('test-03.yml')
 
     def test_simple_recursive(self):
-        self.do_fxt_test('test-4.yml')
+        self.do_fxt_test('test-04.yml')
 
     def test_cycle(self):
         with pytest.raises(compiler.CyclicRefError):
-            self.do_fxt_test('test-5.yml')
+            self.do_fxt_test('test-05.yml')
 
     def test_merge(self):
-        self.do_fxt_test('test-6.yml')
+        self.do_fxt_test('test-06.yml')
+
+    def test_complex_deps(self):
+        self.do_fxt_test('test-07.yml')

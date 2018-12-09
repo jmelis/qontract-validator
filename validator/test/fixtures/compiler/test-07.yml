@@ -1,0 +1,25 @@
+bundle:
+  /role.yml:
+    name: role
+    perms:
+    - $ref: /perm.yml
+  /user.yml:
+    name: user
+    roles:
+    - $ref: /role.yml
+  /perm.yml:
+    name: perm
+
+expected:
+  /role.yml:
+    name: role
+    perms:
+    - name: perm
+  /user.yml:
+    name: user
+    roles:
+    - name: role
+      perms:
+      - name: perm
+  /perm.yml:
+    name: perm
