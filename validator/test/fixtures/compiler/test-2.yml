@@ -1,0 +1,21 @@
+bundle:
+  /a:
+    name: a
+    refs:
+    - $ref: /b
+    - $ref: /c
+  /b:
+    name: b
+  /c:
+    name: c
+
+expected:
+  /a:
+    name: a
+    refs:
+    - name: b
+    - name: c
+  /b:
+    name: b
+  /c:
+    name: c

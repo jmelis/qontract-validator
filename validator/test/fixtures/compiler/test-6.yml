@@ -1,0 +1,20 @@
+bundle:
+  /a:
+    name: a
+    b:
+      $ref: /b
+      override: overriden_b
+  /b:
+    name: b
+    override: original_b
+
+expected:
+  /a:
+    name: a
+    b:
+      name: b
+      override: overriden_b
+  /b:
+    name: b
+    override: original_b
+

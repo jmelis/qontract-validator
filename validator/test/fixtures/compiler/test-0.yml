@@ -1,0 +1,11 @@
+bundle:
+  /a:
+    name: a
+  /b:
+    name: b
+
+expected:
+  /a:
+    name: a
+  /b:
+    name: b
