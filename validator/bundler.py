@@ -5,25 +5,27 @@ import re
 import sys
 
 import anymarkup
+import click
 import json
 
-datadir = sys.argv[1]
 
-if datadir[-1] == "/":
-    datadir = datadir[:-1]
+@click.command()
+@click.option('--data-root', required=True, help='Data directory')
+def main(data_root):
+    if data_root[-1] == "/":
+        data_root = data_root[:-1]
 
-datafiles = []
+    datafiles = {}
 
-for root, dirs, files in os.walk(datadir, topdown=False):
-    for name in files:
-        if re.search(r'\.(ya?ml|json)$', name):
-            path = os.path.join(root, name)
-            datafile = path[len(datadir):]
+    for root, dirs, files in os.walk(data_root, topdown=False):
+        for name in files:
+            if re.search(r'\.(ya?ml|json)$', name):
+                path = os.path.join(root, name)
+                datafile = path[len(data_root):]
 
-            sys.stderr.write("Processing: {}\n".format(datafile))
+                sys.stderr.write("Processing: {}\n".format(datafile))
 
-            data = anymarkup.parse_file(path, force_types=None)
-            datafiles.append([datafile, data])
+                data = anymarkup.parse_file(path, force_types=None)
+                datafiles[datafile] = data
 
-
-print(json.dumps(datafiles, indent=4))
+    sys.stdout.write(json.dumps(datafiles, indent=4) + "\n")

@@ -1,18 +1,16 @@
-#!/usr/bin/env python
-
-import argparse
+import json
 import logging
 import os
 import re
 import sys
 
+from enum import Enum
+
 import anymarkup
-import json
+import cachetools.func
+import click
 import jsonschema
 import requests
-import cachetools.func
-
-from enum import Enum
 
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
@@ -112,7 +110,8 @@ def validate_schema(schemas_root, filename, schema_data):
     except jsonschema.ValidationError as e:
         return ValidationError(kind, filename, "VALIDATION_ERROR", e,
                                meta_schema_url)
-    except (jsonschema.SchemaError, jsonschema.exceptions.RefResolutionError) as e:
+    except (jsonschema.SchemaError,
+            jsonschema.exceptions.RefResolutionError) as e:
         return ValidationError(kind, filename, "SCHEMA_ERROR", e,
                                meta_schema_url)
 
@@ -184,22 +183,11 @@ def fetch_schema_file(schemas_root, schema_url):
     return schema
 
 
-def main():
-    # Parser
-    parser = argparse.ArgumentParser(
-        description='App-Interface Schema Validator')
-
-    parser.add_argument('--schemas-root', required=True,
-                        help='Root directory of the schemas')
-
-    parser.add_argument('--data-root', required=True,
-                        help='Data directory')
-
-    args = parser.parse_args()
-
-    # Metaschema
-    schemas_root = args.schemas_root
-
+@click.command()
+@click.option('--schemas-root', required=True,
+              help='Root directory of the schemas')
+@click.option('--data-root', required=True, help='Data directory')
+def main(schemas_root, data_root):
     # Find schemas
     schemas = [
         (filename, fetch_schema(schemas_root, os.path.join(dirpath, filename)))
@@ -217,7 +205,7 @@ def main():
     # Validate files
     files = [
         os.path.join(root, filename)
-        for root, dirs, files in os.walk(args.data_root)
+        for root, dirs, files in os.walk(data_root)
         for filename in files
     ]
 
@@ -238,11 +226,7 @@ def main():
     ]
 
     # Output
-    print json.dumps(results)
+    sys.stdout.write(json.dumps(results, indent=4) + "\n")
 
     if len(errors) > 0:
         sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()

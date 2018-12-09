@@ -1,9 +1,8 @@
-#!/usr/bin/env python2
-
 import copy
 import json
+import sys
 
-import yaml
+import click
 
 
 class CyclicRefError(RuntimeError):
@@ -18,7 +17,7 @@ def unpack(bundle):
 
 
 def load(datafiles_bundle_path):
-    datafiles_bundle = yaml.load(open(datafiles_bundle_path))
+    datafiles_bundle = json.load(open(datafiles_bundle_path))
     return unpack(datafiles_bundle)
 
 
@@ -49,7 +48,7 @@ def compile(bundle):
     new_bundle = copy.deepcopy(bundle)
     for path, datafile in new_bundle.items():
         try:
-            dereference(bundle, datafile)
+            dereference(new_bundle, datafile)
         except RuntimeError as e:
             if 'maximum recursion' in str(e):
                 raise CyclicRefError()
@@ -57,3 +56,11 @@ def compile(bundle):
                 raise e
 
     return new_bundle
+
+
+@click.command()
+@click.option('--bundle', 'bundle_path', required=True, help='bundle file')
+def main(bundle_path):
+    source_bundle = load(bundle_path)
+    bundle = compile(source_bundle)
+    sys.stdout.write(json.dumps(bundle, indent=4) + "\n")
