@@ -23,7 +23,7 @@ class ValidatedFileKind(Enum):
 class MissingSchemaFile(Exception):
     def __init__(self, path):
         self.path = path
-        message = "file not found: {}".format(path)
+        message = "schema not found: {}".format(path)
         super(Exception, self).__init__(message)
 
 
@@ -85,12 +85,7 @@ class ValidationError(ValidationResult):
         return msg
 
 
-def get_resolver(schemas_root, schema):
-    schema_path = "file://" + os.path.abspath(schemas_root) + '/'
-    return jsonschema.RefResolver(schema_path, schema)
-
-
-def validate_schema(schemas_root, filename, schema_data):
+def validate_schema(schemas_bundle, filename, schema_data):
     kind = ValidatedFileKind.SCHEMA
 
     logging.info('validating schema: {}'.format(filename))
@@ -100,12 +95,14 @@ def validate_schema(schemas_root, filename, schema_data):
     except KeyError as e:
         return ValidationError(kind, filename, "MISSING_SCHEMA_URL", e)
 
-    meta_schema = fetch_schema(schemas_root, meta_schema_url)
+    if meta_schema_url not in schemas_bundle:
+        schemas_bundle[meta_schema_url] = fetch_schema(meta_schema_url)
+
+    meta_schema = schemas_bundle[meta_schema_url]
 
     try:
         jsonschema.Draft4Validator.check_schema(schema_data)
-        resolver = get_resolver(schemas_root, schema_data)
-        validator = jsonschema.Draft4Validator(meta_schema, resolver=resolver)
+        validator = jsonschema.Draft4Validator(meta_schema)
         validator.validate(schema_data)
     except jsonschema.ValidationError as e:
         return ValidationError(kind, filename, "VALIDATION_ERROR", e,
@@ -118,35 +115,24 @@ def validate_schema(schemas_root, filename, schema_data):
     return ValidationOK(kind, filename, meta_schema_url)
 
 
-def validate_file(schemas_root, filename):
+def validate_file(schemas_bundle, filename, data):
     kind = ValidatedFileKind.DATA_FILE
 
     logging.info('validating file: {}'.format(filename))
-
-    try:
-        data = anymarkup.parse_file(filename, force_types=None)
-    except anymarkup.AnyMarkupError as e:
-        return ValidationError(kind, filename, "FILE_PARSE_ERROR", e)
 
     try:
         schema_url = data[u'$schema']
     except KeyError as e:
         return ValidationError(kind, filename, "MISSING_SCHEMA_URL", e)
 
-    try:
-        schema = fetch_schema(schemas_root, schema_url)
-    except MissingSchemaFile as e:
-        return ValidationError(kind, filename, "MISSING_SCHEMA_FILE", e,
-                               schema_url)
-    except requests.HTTPError as e:
-        return ValidationError(kind, filename, "HTTP_ERROR", e, schema_url)
-    except anymarkup.AnyMarkupError as e:
-        return ValidationError(kind, filename, "SCHEMA_PARSE_ERROR", e,
-                               schema_url)
+    if not schema_url.startswith('http') and not schema_url.startswith('/'):
+        schema_url = '/' + schema_url
+
+    schema = schemas_bundle[schema_url]
 
     try:
-        resolver = get_resolver(schemas_root, schema)
-        jsonschema.Draft4Validator(schema, resolver=resolver).validate(data)
+        validator = jsonschema.Draft4Validator(schema)
+        validator.validate(data)
     except jsonschema.ValidationError as e:
         return ValidationError(kind, filename, "VALIDATION_ERROR", e,
                                schema_url)
@@ -159,61 +145,33 @@ def validate_file(schemas_root, filename):
     return ValidationOK(kind, filename, schema_url)
 
 
-@cachetools.func.lru_cache()
-def fetch_schema(schemas_root, schema_url):
+def fetch_schema(schema_url):
     if schema_url.startswith('http'):
         r = requests.get(schema_url)
         r.raise_for_status()
         schema = r.text
+        return anymarkup.parse(schema, force_types=None)
     else:
-        schema = fetch_schema_file(schemas_root, schema_url)
-
-    return anymarkup.parse(schema, force_types=None)
-
-
-def fetch_schema_file(schemas_root, schema_url):
-    schema_file = os.path.join(schemas_root, schema_url)
-
-    if not os.path.isfile(schema_file):
-        raise MissingSchemaFile(schema_file)
-
-    with open(schema_file, 'r') as f:
-        schema = f.read()
-
-    return schema
+        raise MissingSchemaFile(schema_url)
 
 
 @click.command()
-@click.option('--schemas-root', required=True,
-              help='Root directory of the schemas')
-@click.option('--data-root', required=True, help='Data directory')
-def main(schemas_root, data_root):
-    # Find schemas
-    schemas = [
-        (filename, fetch_schema(schemas_root, os.path.join(dirpath, filename)))
-        for dirpath, dirnames, filenames in os.walk(schemas_root)
-        for filename in filenames
-        if re.search("\.(json|ya?ml)$", filename)
-    ]
+@click.option('--schemas-bundle', 'schemas_bundle_path',
+              required=True, help='schemas bundle file')
+@click.option('--bundle', 'bundle_path', required=True, help='bundle file')
+def main(schemas_bundle_path, bundle_path):
+    bundle = json.load(open(bundle_path))
+    schemas_bundle = json.load(open(schemas_bundle_path))
 
     # Validate schemas
     results_schemas = [
-        validate_schema(schemas_root, filename, schema_data).dump()
-        for filename, schema_data in schemas
-    ]
-
-    # Validate files
-    files = [
-        os.path.join(root, filename)
-        for root, dirs, files in os.walk(data_root)
-        for filename in files
+        validate_schema(schemas_bundle, filename, schema_data).dump()
+        for filename, schema_data in schemas_bundle.items()
     ]
 
     results_files = [
-        validate_file(schemas_root, filename).dump()
-        for filename in files
-        if re.search("\.(json|ya?ml)$", filename)
-        if os.path.isfile(filename)
+        validate_file(schemas_bundle, filename, data).dump()
+        for filename, data in bundle.items()
     ]
 
     # Calculate errors
@@ -226,7 +184,7 @@ def main(schemas_root, data_root):
     ]
 
     # Output
-    sys.stdout.write(json.dumps(results, indent=4) + "\n")
+    sys.stdout.write(json.dumps(errors, indent=4) + "\n")
 
     if len(errors) > 0:
         sys.exit(1)
