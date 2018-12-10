@@ -1,13 +1,10 @@
 import json
 import logging
-import os
-import re
 import sys
 
 from enum import Enum
 
 import anymarkup
-import cachetools.func
 import click
 import jsonschema
 import requests

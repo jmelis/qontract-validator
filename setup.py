@@ -15,7 +15,6 @@ setup(
 
     install_requires=[
         "anymarkup==0.7.0",
-        "cachetools==2.1.0",
         "Click==7.0",
         "enum34==1.1.6",
         "jsonpointer==2.0",
