@@ -8,24 +8,30 @@ import anymarkup
 import click
 import json
 
+import resolver
+
 
 @click.command()
-@click.option('--data-root', required=True, help='Data directory')
-def main(data_root):
-    if data_root[-1] == "/":
-        data_root = data_root[:-1]
+@click.option('--resolve', is_flag=True, help='Resolve references')
+@click.argument('data-dir')
+def main(resolve, data_dir):
+    if data_dir[-1] == "/":
+        data_dir = data_dir[:-1]
 
-    datafiles = {}
+    bundle = {}
 
-    for root, dirs, files in os.walk(data_root, topdown=False):
+    for root, dirs, files in os.walk(data_dir, topdown=False):
         for name in files:
             if re.search(r'\.(ya?ml|json)$', name):
                 path = os.path.join(root, name)
-                datafile = path[len(data_root):]
+                datafile = path[len(data_dir):]
 
                 sys.stderr.write("Processing: {}\n".format(datafile))
 
                 data = anymarkup.parse_file(path, force_types=None)
-                datafiles[datafile] = data
+                bundle[datafile] = data
 
-    sys.stdout.write(json.dumps(datafiles, indent=4) + "\n")
+    if resolve:
+        bundle = resolver.resolve(bundle)
+
+    sys.stdout.write(json.dumps(bundle, indent=4) + "\n")
