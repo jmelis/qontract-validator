@@ -156,12 +156,11 @@ def fetch_schema(schema_url):
 
 
 @click.command()
-@click.option('--schemas-bundle', 'schemas_bundle_path',
-              required=True, help='schemas bundle file')
-@click.option('--bundle', 'bundle_path', required=True, help='bundle file')
-def main(schemas_bundle_path, bundle_path):
-    bundle = json.load(open(bundle_path))
-    schemas_bundle = json.load(open(schemas_bundle_path))
+@click.argument('schemas-bundle')
+@click.argument('data-bundle')
+def main(schemas_bundle, data_bundle):
+    bundle = json.load(open(data_bundle))
+    schemas_bundle = json.load(open(schemas_bundle))
 
     # Validate schemas
     results_schemas = [
