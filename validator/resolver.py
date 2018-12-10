@@ -6,6 +6,9 @@ import sys
 import click
 import jsonpointer
 
+if basestring is None:
+    basestring = str
+
 
 class CyclicRefError(RuntimeError):
     pass
@@ -35,10 +38,10 @@ def dereference(bundle, datafile_path, obj, parent=None, key_index=None):
     if isinstance(obj, dict):
         if parent is not None and \
                 key_index is not None and \
-                '$ref' in obj:
+                '$ref' in obj and \
+                isinstance(obj['$ref'], basestring):
 
             path, ptr = split_ref(obj['$ref'])
-
             if path is not None:
                 target = copy.deepcopy(bundle[path])
 
