@@ -153,9 +153,10 @@ def fetch_schema(schema_url):
 
 
 @click.command()
+@click.option('--only-errors', is_flag=True, help='Print only errors')
 @click.argument('schemas-bundle')
 @click.argument('data-bundle')
-def main(schemas_bundle, data_bundle):
+def main(only_errors, schemas_bundle, data_bundle):
     bundle = json.load(open(data_bundle))
     schemas_bundle = json.load(open(schemas_bundle))
 
@@ -174,13 +175,15 @@ def main(schemas_bundle, data_bundle):
     results = results_schemas + results_files
 
     errors = [
-        r
-        for r in results
+        r for r in results
         if r['result']['status'] == 'ERROR'
     ]
 
     # Output
-    sys.stdout.write(json.dumps(errors, indent=4) + "\n")
+    if only_errors:
+        sys.stdout.write(json.dumps(errors, indent=4) + "\n")
+    else:
+        sys.stdout.write(json.dumps(results, indent=4) + "\n")
 
     if len(errors) > 0:
         sys.exit(1)
