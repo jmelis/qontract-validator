@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import re
 
 from enum import Enum
 
@@ -82,6 +83,22 @@ class ValidationError(ValidationResult):
         return msg
 
 
+def get_handlers(schemas_bundle):
+    """
+    Generates a dictionary which will be used as an the `handlers` argument for
+    jsonschema.RefResolver.
+
+    `handlers` is a mapping from URI schemes to functions that should be used
+    to retrieve them.
+
+    In this case we are overloading the empty string scheme, which will be the
+    scheme detected for absolute or relative file paths.
+    """
+    return {
+        '': lambda s: schemas_bundle[s]
+    }
+
+
 def validate_schema(schemas_bundle, filename, schema_data):
     kind = ValidatedFileKind.SCHEMA
 
@@ -92,14 +109,25 @@ def validate_schema(schemas_bundle, filename, schema_data):
     except KeyError as e:
         return ValidationError(kind, filename, "MISSING_SCHEMA_URL", e)
 
-    if meta_schema_url not in schemas_bundle:
-        schemas_bundle[meta_schema_url] = fetch_schema(meta_schema_url)
+    if meta_schema_url in schemas_bundle:
+        meta_schema = schemas_bundle[meta_schema_url]
+    else:
+        meta_schema = fetch_schema(meta_schema_url)
+        schemas_bundle[meta_schema_url] = meta_schema
 
-    meta_schema = schemas_bundle[meta_schema_url]
+    resolver = jsonschema.RefResolver(
+        filename,
+        schema_data,
+        handlers=get_handlers(schemas_bundle)
+    )
+
+    jsonschema.Draft4Validator.check_schema(schema_data)
+    validator = jsonschema.Draft4Validator(meta_schema, resolver=resolver)
+    validator.validate(schema_data)
 
     try:
         jsonschema.Draft4Validator.check_schema(schema_data)
-        validator = jsonschema.Draft4Validator(meta_schema)
+        validator = jsonschema.Draft4Validator(meta_schema, resolver=resolver)
         validator.validate(schema_data)
     except jsonschema.ValidationError as e:
         return ValidationError(kind, filename, "VALIDATION_ERROR", e,
@@ -128,7 +156,12 @@ def validate_file(schemas_bundle, filename, data):
     schema = schemas_bundle[schema_url]
 
     try:
-        validator = jsonschema.Draft4Validator(schema)
+        resolver = jsonschema.RefResolver(
+            schema_url,
+            schema,
+            handlers=get_handlers(schemas_bundle)
+        )
+        validator = jsonschema.Draft4Validator(schema, resolver=resolver)
         validator.validate(data)
     except jsonschema.ValidationError as e:
         return ValidationError(kind, filename, "VALIDATION_ERROR", e,
