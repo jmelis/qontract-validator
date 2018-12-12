@@ -16,6 +16,7 @@ logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 class ValidatedFileKind(Enum):
     SCHEMA = "SCHEMA"
     DATA_FILE = "FILE"
+    REF = "REF"
 
 
 class MissingSchemaFile(Exception):
@@ -28,7 +29,12 @@ class MissingSchemaFile(Exception):
 class ValidationResult(object):
     def summary(self):
         status = 'OK' if self.status else 'ERROR'
-        return "{}: {} ({})".format(status, self.filename, self.schema_url)
+        summary = "{}: {} ({})".format(status, self.filename, self.schema_url)
+
+        if hasattr(self, 'ref'):
+            summary += " ({})".format(self.ref)
+
+        return summary
 
 
 class ValidationOK(ValidationResult):
@@ -47,6 +53,29 @@ class ValidationOK(ValidationResult):
                 "summary": self.summary(),
                 "status": "OK",
                 "schema_url": self.schema_url,
+            }
+        }
+
+
+class ValidationRefOK(ValidationResult):
+    status = True
+
+    def __init__(self, kind, filename, ref, schema_url):
+        self.kind = kind
+        self.filename = filename
+        self.schema_url = schema_url
+        self.ref = ref
+
+    def dump(self):
+        return {
+            "filename": self.filename,
+            "ref": self.ref,
+            "kind": self.kind.value,
+            "result": {
+                "summary": self.summary(),
+                "status": "OK",
+                "schema_url": self.schema_url,
+                "ref": self.ref,
             }
         }
 
@@ -175,6 +204,27 @@ def validate_file(schemas_bundle, filename, data):
     return ValidationOK(kind, filename, schema_url)
 
 
+def validate_ref(bundle, filename, data, ref):
+    kind = ValidatedFileKind.REF
+
+    try:
+        ref_data = bundle[ref["$ref"]]
+    except KeyError as e:
+        return ValidationError(
+            kind,
+            filename,
+            "FILE_NOT_FOUND",
+            e
+        )
+
+    return ValidationRefOK(
+        kind,
+        filename,
+        ref['$ref'],
+        "mySchemaUrl"
+    )
+
+
 def fetch_schema(schema_url):
     if schema_url.startswith('http'):
         r = requests.get(schema_url)
@@ -183,6 +233,23 @@ def fetch_schema(schema_url):
         return anymarkup.parse(schema, force_types=None)
     else:
         raise MissingSchemaFile(schema_url)
+
+
+def find_refs(obj, refs=None):
+    if refs is None:
+        refs = []
+
+    if isinstance(obj, dict):
+        # is this a ref?
+        if '$ref' in obj:
+            refs.append(obj)
+        else:
+            for key, item in obj.items():
+                find_refs(item, refs)
+    elif isinstance(obj, list):
+        for item in obj:
+            find_refs(item, refs)
+    return refs
 
 
 @click.command()
@@ -199,13 +266,21 @@ def main(only_errors, schemas_bundle, data_bundle):
         for filename, schema_data in schemas_bundle.items()
     ]
 
+    # validate datafiles
     results_files = [
         validate_file(schemas_bundle, filename, data).dump()
         for filename, data in bundle.items()
     ]
 
+    # validate refs
+    results_refs = [
+        validate_ref(bundle, filename, data, ref).dump()
+        for filename, data in bundle.items()
+        for ref in find_refs(data)
+    ]
+
     # Calculate errors
-    results = results_schemas + results_files
+    results = results_schemas + results_files + results_refs
 
     errors = [
         r for r in results
