@@ -1,7 +1,7 @@
+import copy
 import json
 import logging
 import sys
-import re
 
 from enum import Enum
 
@@ -13,26 +13,36 @@ import requests
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
 
+class IncorrectSchema(Exception):
+    def __init__(self, got, expecting):
+        message = "incorrect schema: got `{}`, expecting `{}`".format(
+            got, expecting)
+        super(Exception, self).__init__(message)
+
+
+class MissingSchemaFile(Exception):
+    def __init__(self, path):
+        self.path = path
+        message = "schema not found: `{}`".format(path)
+        super(Exception, self).__init__(message)
+
+
 class ValidatedFileKind(Enum):
     SCHEMA = "SCHEMA"
     DATA_FILE = "FILE"
     REF = "REF"
 
 
-class MissingSchemaFile(Exception):
-    def __init__(self, path):
-        self.path = path
-        message = "schema not found: {}".format(path)
-        super(Exception, self).__init__(message)
-
-
 class ValidationResult(object):
     def summary(self):
         status = 'OK' if self.status else 'ERROR'
-        summary = "{}: {} ({})".format(status, self.filename, self.schema_url)
+        summary = "{}: {}".format(status, self.filename)
 
         if hasattr(self, 'ref'):
-            summary += " ({})".format(self.ref)
+            summary += " ({})".format(getattr(self, 'ref'))
+
+        if hasattr(self, 'schema_url'):
+            summary += " ({})".format(getattr(self, 'schema_url'))
 
         return summary
 
@@ -83,24 +93,27 @@ class ValidationRefOK(ValidationResult):
 class ValidationError(ValidationResult):
     status = False
 
-    def __init__(self, kind, filename, reason, error, schema_url=None):
+    def __init__(self, kind, filename, reason, error, **kwargs):
         self.kind = kind
         self.filename = filename
         self.reason = reason
         self.error = error
-        self.schema_url = schema_url
+        self.kwargs = kwargs
 
     def dump(self):
+        result = {
+            "summary": self.summary(),
+            "status": "ERROR",
+            "reason": self.reason,
+            "error": self.error.__str__()
+        }
+
+        result.update(self.kwargs)
+
         return {
             "filename": self.filename,
             "kind": self.kind.value,
-            "result": {
-                "summary": self.summary(),
-                "status": "ERROR",
-                "schema_url": self.schema_url,
-                "reason": self.reason,
-                "error": self.error.__str__()
-            }
+            "result": result
         }
 
     def error_info(self):
@@ -194,17 +207,18 @@ def validate_file(schemas_bundle, filename, data):
         validator.validate(data)
     except jsonschema.ValidationError as e:
         return ValidationError(kind, filename, "VALIDATION_ERROR", e,
-                               schema_url)
+                               schema_url=schema_url)
     except jsonschema.SchemaError as e:
-        return ValidationError(kind, filename, "SCHEMA_ERROR", e, schema_url)
+        return ValidationError(kind, filename, "SCHEMA_ERROR", e,
+                               schema_url=schema_url)
     except TypeError as e:
         return ValidationError(kind, filename, "SCHEMA_TYPE_ERROR", e,
-                               schema_url)
+                               schema_url=schema_url)
 
     return ValidationOK(kind, filename, schema_url)
 
 
-def validate_ref(bundle, filename, data, ref):
+def validate_ref(schemas_bundle, bundle, filename, data, ptr, ref):
     kind = ValidatedFileKind.REF
 
     try:
@@ -214,15 +228,24 @@ def validate_ref(bundle, filename, data, ref):
             kind,
             filename,
             "FILE_NOT_FOUND",
-            e
+            e,
+            ref=ref['$ref']
         )
 
-    return ValidationRefOK(
-        kind,
-        filename,
-        ref['$ref'],
-        "mySchemaUrl"
-    )
+    schema = schemas_bundle[data['$schema']]
+    schema_info = get_schema_info_from_pointer(schema, ptr)
+    expected_schema = schema_info.get('$schemaRef')
+
+    if expected_schema and expected_schema != ref_data['$schema']:
+        return ValidationError(
+            kind,
+            filename,
+            "INCORRECT_SCHEMA",
+            IncorrectSchema(ref_data['$schema'], expected_schema),
+            ref=ref['$ref']
+        )
+
+    return ValidationRefOK(kind, filename, ref['$ref'], data['$schema'])
 
 
 def fetch_schema(schema_url):
@@ -235,21 +258,63 @@ def fetch_schema(schema_url):
         raise MissingSchemaFile(schema_url)
 
 
-def find_refs(obj, refs=None):
+def find_refs(obj, ptr=None, refs=None):
     if refs is None:
         refs = []
+
+    if ptr is None:
+        ptr = ""
 
     if isinstance(obj, dict):
         # is this a ref?
         if '$ref' in obj:
-            refs.append(obj)
+            refs.append((ptr, obj))
         else:
             for key, item in obj.items():
-                find_refs(item, refs)
+                new_ptr = "{}/{}".format(ptr, key)
+                find_refs(item, new_ptr, refs)
     elif isinstance(obj, list):
-        for item in obj:
-            find_refs(item, refs)
+        for index, item in enumerate(obj):
+            new_ptr = "{}/{}".format(ptr, index)
+            find_refs(item, new_ptr, refs)
+
     return refs
+
+
+def temp_patch(uri):
+    return uri if uri[0] == '/' else '/' + uri
+
+
+def get_schema_info_from_pointer(schema, ptr):
+    info = copy.deepcopy(schema)
+    ptr_list = ptr.split('/')[1:]
+
+    # assuming schema is type: object, other cases are not implemented
+    info = info["properties"]
+
+    while True:
+        if len(ptr_list) == 1:
+            return info[ptr_list[0]]
+
+        if len(ptr_list) == 2:
+            try:
+                if info[ptr_list[0]]["type"] == "array":
+                    return info[ptr_list[0]]["items"]
+            except IndexError:
+                pass
+
+        info = info[ptr_list[0]]
+
+        if info["type"] == "object":
+            info = info["properties"]
+            ptr_list = ptr_list[1:]
+        elif info["type"] == "array":
+            info = info["items"]
+            ptr_list = ptr_list[2:]
+        else:
+            raise Exception("does this even make sense?")
+
+    return info
 
 
 @click.command()
@@ -274,9 +339,9 @@ def main(only_errors, schemas_bundle, data_bundle):
 
     # validate refs
     results_refs = [
-        validate_ref(bundle, filename, data, ref).dump()
+        validate_ref(schemas_bundle, bundle, filename, data, ptr, ref).dump()
         for filename, data in bundle.items()
-        for ref in find_refs(data)
+        for ptr, ref in find_refs(data)
     ]
 
     # Calculate errors
