@@ -6,7 +6,9 @@ import sys
 import click
 import jsonpointer
 
-if basestring is None:
+try:
+    basestring
+except NameError:
     basestring = str
 
 
