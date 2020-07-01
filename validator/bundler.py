@@ -30,8 +30,6 @@ def bundle_datafile_spec(spec):
     path = os.path.join(root, name)
     rel_abs_path = path[len(work_dir):]
 
-    sys.stderr.write("Processing: {}\n".format(rel_abs_path))
-
     return rel_abs_path, anymarkup.parse_file(path, force_types=None)
 
 
@@ -48,7 +46,6 @@ def bundle_resource_spec(spec):
     name = spec['name']
     path = os.path.join(root, name)
     rel_abs_path = path[len(work_dir):]
-    sys.stderr.write("Resource: {}\n".format(rel_abs_path))
 
     content = open(path, 'r').read()
 
